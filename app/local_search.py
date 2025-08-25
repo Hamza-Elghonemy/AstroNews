@@ -4,23 +4,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from math import exp
 from typing import List, Dict
-
-#--------------HELPERS----------------------
-def tokenize(s:str):
-    return re.findall(r"[a-z0-9]+", s.lower())
-
-def contains_word(text:str, word:str) -> bool:
-    """Check if a word is in a text as a whole word, case-insensitive.
-    Args:
-        text (str): The text to search.
-        word (str): The word to search for.
-    Returns:
-        bool: True if the word is found as a whole word, False otherwise.
-    """
-    pattern = r'\b' + re.escape(word) + r'\b'
-    return re.search(pattern, text, re.IGNORECASE) is not None
-
-
+from text_utils import tokenize, contains_word
 
 def latest_jsonl_files(directory = "data/raw") -> List[Path]:
     """Returns a list of the latest JSONL files in the given directory.
@@ -52,17 +36,30 @@ def load_jsonl(file_path: Path) -> List[Dict]:
                 items.append(json.loads(line))
     return items
 
-def as_utc(timestamp: float) -> datetime:
-    """Convert a Unix timestamp to a UTC datetime.
+def as_utc(ts: str) -> datetime:
+    """Convert a timestamp string to a UTC datetime.
+
     Args:
-        timestamp (float): The Unix timestamp to convert.
+        ts (str): The timestamp string to convert.
+
     Returns:
         datetime: The corresponding UTC datetime.
     """
+    if not ts or not isinstance(ts, str):
+        # Very old fallback (effectively recency ~ 0)
+        return datetime.now(timezone.utc).replace(year=2000)
+
+    s = ts.strip()
     try:
-        return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone.utc) # 
-    except (OSError, ValueError):
-        return datetime.fromisoformat(timestamp.strip("+")[0]).replace(tzinfo=timezone.utc) 
+        # Normalize trailing Z to +00:00
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return datetime.now(timezone.utc).replace(year=2000)
 
 def textify(item: dict) -> str:
     """Convert a news article item to a plain text representation.
@@ -79,7 +76,7 @@ def textify(item: dict) -> str:
     return f"{title}\n\n{summary}".strip()
     
 # --------------------------------------------------------
-def recency_boost(published_at: datetime, now: datetime, tau_days: float=14.0) -> float:
+def recency_boost(published_at, now: datetime, tau_days: float=14.0) -> float:
     """
     Apply a recency boost to the relevance score based on the publication date.
     Args:
@@ -89,8 +86,15 @@ def recency_boost(published_at: datetime, now: datetime, tau_days: float=14.0) -
     Returns:
         float: The boosted relevance score.
     """
-    day = max(0.0, (now - published_at).total_seconds() - 86400.0)
-    return exp(-day / tau_days)
+    if isinstance(published_at, str):
+        dt = as_utc(published_at)
+    elif isinstance(published_at, datetime):
+        dt = published_at.astimezone(timezone.utc) if published_at.tzinfo else published_at.replace(tzinfo=timezone.utc)
+    else:
+        dt = datetime.now(timezone.utc).replace(year=2000)
+
+    age_days = max(0.0, (now - dt).total_seconds() / 86400.0)  # convert seconds → days
+    return exp(-age_days / tau_days)
 
 def keyword_score(query_tokens: List[str], title: str, summary: str) -> float:
     """
