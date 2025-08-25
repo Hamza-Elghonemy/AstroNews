@@ -1,0 +1,14 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+SQLAlchemy==2.0.31
+psycopg[binary]==3.2.1
+pgvector==0.2.5
+python-dotenv==1.0.1
+sentence-transformers==3.0.1
+scikit-learn==1.4.2
+feedparser==6.0.11
+arxiv==2.1.0
+pydantic==2.7.4
+requests==2.32.3
+beautifulsoup4==4.12.2
+langdetect==1.0.9
