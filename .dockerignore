@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+.venv
+venv
+.git
+.gitignore
+.idea
+.DS_Store
+tests/
+notebooks/
+debug_plots/
