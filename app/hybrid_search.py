@@ -4,10 +4,13 @@ from datetime import datetime, timezone
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from text_utils import enhanced_keyword_score, keyword_hits, contains_word, must_have_gate  # tokenize not needed here
+from text_utils import enhanced_keyword_score, must_have_gate  # tokenize not needed here
 from semantic_search import load_meta
-from local_search import as_utc, recency_boost
+from local_search import recency_boost
+from score_plot import save_debug_plots, plot_breakdown
 from dotenv import load_dotenv
+
+
 
 load_dotenv()
 
@@ -65,7 +68,7 @@ def hybrid_search(query: str, k: int = 8):
         pub_at  = m.get("published_at") or m.get("published")
 
         kw_raw = enhanced_keyword_score(query, title, summary)
-        rec    = recency_boost(pub_at, now)  # already 0..1
+        rec    = recency_boost(pub_at, now) 
 
         candidates.append({
             "idx": int(idx),
@@ -115,7 +118,6 @@ def hybrid_search(query: str, k: int = 8):
             "score_semantic": float(c["semantic_norm"]),
             "score_keyword":  float(c["keyword_norm"]),
             "score_recency":  float(c["recency"]),
-            # debug:
             "semantic_raw":   float(c["semantic_raw"]),
             "keyword_raw":    float(c["keyword_raw"]),
         })
@@ -126,9 +128,12 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Hybrid search (semantic + keyword + recency)")
     ap.add_argument("--query", type=str, required=True)
     ap.add_argument("--k", type=int, default=8)
+    ap.add_argument("--debug", type=int, default=0, help="Number of debug plots to generate (0 = none)")
+    ap.add_argument("--out-dir", "-o", type=str, default="debug_plots", help="Output directory for debug plots")
     args = ap.parse_args()
 
     hits = hybrid_search(args.query, k=args.k)
+    
     print(f"\nTop {len(hits)} hybrid results for: {args.query!r}\n")
     for i, h in enumerate(hits, 1):
         date = (h.get("published_at") or "")[:10]
@@ -136,3 +141,19 @@ if __name__ == "__main__":
               f"(final={h['score_final']:.3f} | sem={h['score_semantic']:.3f} | kw={h['score_keyword']:.3f} | rec={h['score_recency']:.3f})")
         print(f"     {h['title']}")
         print(f"     {h['url']}")
+    
+    if args.debug > 0:
+        # reconstruct minimal candidate dicts from 'hits'
+        candidates_sorted = [{
+            "title": h["title"],
+            "semantic_norm": h["score_semantic"],
+            "keyword_norm":  h["score_keyword"],
+            "recency":       h["score_recency"],
+        } for h in hits]
+        save_debug_plots(
+            candidates_sorted,
+            top_n=args.debug,
+            out_dir=Path(args.out_dir),
+            sem_w=SEM_W, kw_w=KW_W, rec_w=REC_W
+        )
+        print(f"\nSaved {min(args.debug, len(hits))} breakdown chart(s) to {args.out_dir}")
