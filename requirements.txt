@@ -12,3 +12,7 @@ pydantic==2.7.4
 requests==2.32.3
 beautifulsoup4==4.12.2
 langdetect==1.0.9
+faiss-cpu==1.7.2
+sentence-transformers==3.0.1
+numpy==1.23.5
+tqdm==4.65.0

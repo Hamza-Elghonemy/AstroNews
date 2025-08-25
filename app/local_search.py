@@ -5,6 +5,20 @@ from datetime import datetime, timezone
 from math import exp
 from typing import List, Dict
 
+#--------------HELPERS----------------------
+def tokenize(s:str):
+    return re.findall(r"[a-z0-9]+", s.lower())
+
+def contains_word(text:str, word:str) -> bool:
+    """Check if a word is in a text as a whole word, case-insensitive.
+    Args:
+        text (str): The text to search.
+        word (str): The word to search for.
+    Returns:
+        bool: True if the word is found as a whole word, False otherwise.
+    """
+    pattern = r'\b' + re.escape(word) + r'\b'
+    return re.search(pattern, text, re.IGNORECASE) is not None
 
 
 
@@ -75,21 +89,33 @@ def recency_boost(published_at: datetime, now: datetime, tau_days: float=14.0) -
     Returns:
         float: The boosted relevance score.
     """
-    day = max(0.0, (now - published_at).days - tau_days)
+    day = max(0.0, (now - published_at).total_seconds() - 86400.0)
     return exp(-day / tau_days)
 
-def keyword_score(query_tokens: List[str], text: str) -> float:
+def keyword_score(query_tokens: List[str], title: str, summary: str) -> float:
     """
     Calculate the keyword score for a given text based on the query tokens.
     Args:
         query_tokens (List[str]): The list of query tokens.
-        text (str): The text to evaluate.
+        title (str): The title to evaluate.
+        summary (str): The summary to evaluate.
     Returns:
         float: The keyword score.
     """
-    text_tokens = re.findall(r"[a-z0-9]+", text.lower())
-    count = Counter(text_tokens)
-    return sum(count[token] for token in query_tokens) / len(query_tokens) if query_tokens else 0.0 # Avoid division by zero
+    
+    t_title = tokenize(title)
+    t_sum = tokenize(summary)
+    c_title = Counter(t_title)
+    c_sum = Counter(t_sum)
+    
+    title_hits = sum(c_title[token] for token in query_tokens)
+    sum_hits = sum(c_sum[token] for token in query_tokens)
+    
+    # weights --> title 3x summary
+    title_score = title_hits * 3
+    summary_score = sum_hits
+
+    return title_score + summary_score
 
 def score_item(item: dict, query_tokens: str, now: datetime) -> float:
     """Score a news article item based on the query tokens and publication date.
@@ -103,15 +129,29 @@ def score_item(item: dict, query_tokens: str, now: datetime) -> float:
         float: The overall score for the news article item.
     """
     ts = item.get("published_at")
-    if not ts:
-        published_dt = now.replace(year=now.year-10)
-    else:
-        published_dt = as_utc(ts)
-        
-    recency = recency_boost(published_dt, now)
-    keywords = keyword_score(query_tokens, textify(item))
+    published_dt = as_utc(ts) if ts else now.replace(year=now.year - 10)
     
-    return recency * 0.3 + 0.7 * keywords 
+    title = item.get("title") or ""
+    summary = item.get("summary") or ""
+    q_tokens = tokenize(query_tokens)
+
+    kw = keyword_score(q_tokens, title, summary)
+    exact_bonus = 0.0
+    for tok in set(q_tokens):
+        if contains_word(title, tok):
+            exact_bonus += 2.0
+        elif contains_word(summary, tok):
+            exact_bonus += 0.5
+            
+    # If no keyword evidence at all, downweight heavily (so recency doesn't dominate)        
+    if kw == 0 and exact_bonus == 0:
+        kw_penalized = 0.1
+    else:
+        kw_penalized = kw + exact_bonus 
+    
+    recency = recency_boost(published_dt, now)
+    
+    return 0.85 * kw_penalized + 0.15 * recency 
 
 def search(items: List[Dict], query: str, k: int = 10) -> List[Dict]:
     now = datetime.now(timezone.utc)
