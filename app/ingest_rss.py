@@ -51,7 +51,7 @@ def normalize(entry, feed_url):
         "topics": []
     }
 
-def run_ingest_rss(max_items_per_feed = 100, since_days=None):
+def run_ingest_rss(max_items_per_feed = 100, since_days=30):
     
     output = []
     

@@ -1,10 +1,12 @@
 import os, json
 from pathlib import Path
+import sys
+sys.path.append(str(Path(__file__).parent))
 from datetime import datetime, timezone
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
-from text_utils import enhanced_keyword_score, must_have_gate  # tokenize not needed here
+from text_utils import enhanced_keyword_score, must_have_gate 
 from semantic_search import load_meta
 from local_search import recency_boost
 from score_plot import save_debug_plots, plot_breakdown
