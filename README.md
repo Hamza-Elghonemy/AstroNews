@@ -55,6 +55,11 @@ Once the setup is complete, you can run the main application script:
 ```bash
 python main.py
 ```
+## 🖼️ UI
+<img width="1200" height="520" alt="image" src="https://github.com/user-attachments/assets/e9d7df73-7864-4e11-aafa-3a5344a42bac" />
+
+<img width="1789" height="783" alt="image" src="https://github.com/user-attachments/assets/dde7d605-80ea-4135-b509-b8e233e82527" />
+
 
 ## 📄 License
 
